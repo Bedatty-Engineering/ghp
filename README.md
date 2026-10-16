@@ -1,64 +1,88 @@
 # ghp
 
-`ghp` is a standalone command line tool for managing multiple authenticated
-accounts in the [GitHub CLI](https://cli.github.com/). It is independent of any
-dotfiles repository and does not contain account names, tokens, or machine
-specific paths.
+`ghp` is a small command line account manager for [GitHub CLI](https://cli.github.com/).
+Use it to switch between accounts already authenticated with `gh`, add another
+account, or create an SSH signing key for an account.
+
+## Features
+
+- Switch accounts directly or choose one from an interactive `fzf` menu.
+- List accounts and inspect the active account's authentication status.
+- Start or end a GitHub CLI login session.
+- Create or reuse an Ed25519 SSH key for GitHub commit signing.
+- Target GitHub Enterprise with `GH_HOST`.
+- Install as a single executable; no build step or dotfiles repository required.
 
 ## Requirements
 
-- Bash 3.2 or later
-- [GitHub CLI](https://cli.github.com/) (`gh`)
-- [fzf](https://github.com/junegunn/fzf) for the interactive account picker
-- `ssh-keygen` for `ghp signing-key`
+| Dependency | Needed for |
+| --- | --- |
+| Bash 3.2 or later | Running `ghp` (available by default on macOS and Linux) |
+| [GitHub CLI](https://cli.github.com/) | Account and authentication commands |
+| [fzf](https://github.com/junegunn/fzf) | Interactive account picker |
+| `ssh-keygen` | `ghp signing-key` |
+
+Authenticate accounts with `gh auth login` before switching between them.
 
 ## Install
 
-Clone this repository and run:
+Clone the repository and install the executable:
 
 ```sh
+git clone https://github.com/Bedatty-Engineering/ghp.git
+cd ghp
 ./ghp install
 ```
 
-This installs the command to `~/.local/bin/ghp`. To choose another directory:
+The installer copies `ghp` to `~/.local/bin`. Add that directory to `PATH` if
+it is not already there. To install somewhere else, pass a destination:
 
 ```sh
 ./ghp install "$HOME/bin"
 ```
 
-Make sure the install directory is on your `PATH`. Alternatively, copy the
-single `ghp` executable to any directory on your `PATH`.
+You can also run `./ghp` from the checkout without installing it.
 
 ## Usage
 
-```text
-ghp                         Choose an account with fzf
-ghp use <account>           Switch to an account
-ghp list                    List authenticated accounts
-ghp status                  Show account and authentication status
-ghp login                   Authenticate another account
-ghp signing-key [account]   Create or reuse an SSH signing key
-ghp logout [account]        Log out an account (defaults to active)
-ghp help                    Show help
+```sh
+ghp                          # Open the interactive menu
+ghp use <account>            # Switch to an account
+ghp list                     # List authenticated accounts
+ghp status                   # Show the active account and auth status
+ghp login                    # Authenticate another account
+ghp logout [account]         # Log out (defaults to the active account)
+ghp signing-key [account]    # Create or reuse an SSH signing key
+ghp help                     # Show all commands
 ```
 
-For GitHub Enterprise, set the host for the command or your shell session:
+The interactive menu needs `fzf`. All other commands work without it.
+
+## GitHub Enterprise
+
+Set `GH_HOST` for a single command or export it for the shell session:
 
 ```sh
 GH_HOST=github.example.com ghp status
 export GH_HOST=github.example.com
 ```
 
-`ghp signing-key` creates an Ed25519 SSH key for the selected account under
-`~/.ssh`, then prints instructions for adding the public key to GitHub. It
-never uploads the key or prints the private key.
+The default host is `github.com`.
 
-## Security and privacy
+## SSH signing keys
 
-The repository contains only the command and generic documentation. `ghp`
-delegates authentication and credential storage to `gh`, and reads the active
-host from `GH_HOST` (default: `github.com`). Do not commit generated keys,
-authentication data, or machine-specific configuration to this repository.
+`ghp signing-key [account]` creates a new Ed25519 key under `~/.ssh` or updates
+the comment on an existing generated key for that host and account. The command
+prints the steps to add the public key to GitHub as a **Signing Key**. It does
+not upload keys; keep the private key file private. On macOS, use the printed
+`pbcopy` command to copy the public key. On Linux, display it with
+`cat ~/.ssh/<public-key-file>` and copy the output.
+
+## Privacy
+
+The repository contains no account names, authentication data, or
+machine-specific paths. Authentication stays in GitHub CLI. Generated signing
+keys stay on the local machine.
 
 ## License
 
