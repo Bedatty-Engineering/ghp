@@ -1,8 +1,24 @@
-# ghp
+<table>
+<tr>
+<td><img src="https://github.com/Bedatty-Engineering.png" alt="Bedatty Engineering" width="72" /></td>
+<td><h1>ghp</h1><p>A GitHub CLI account switcher with interactive selection and SSH signing key setup.</p></td>
+</tr>
+</table>
 
 `ghp` is a small command line account manager for [GitHub CLI](https://cli.github.com/).
 Use it to switch between accounts already authenticated with `gh`, add another
 account, or create an SSH signing key for an account.
+
+## Contents
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [Install](#install)
+- [Usage](#usage)
+- [GitHub Enterprise](#github-enterprise)
+- [SSH signing keys](#ssh-signing-keys)
+- [Privacy](#privacy)
+- [License](#license)
 
 ## Features
 
@@ -21,27 +37,53 @@ account, or create an SSH signing key for an account.
 | [GitHub CLI](https://cli.github.com/) | Account and authentication commands |
 | [fzf](https://github.com/junegunn/fzf) | Interactive account picker |
 | `ssh-keygen` | `ghp signing-key` |
+| `curl` | Remote install and uninstall scripts |
 
 Authenticate accounts with `gh auth login` before switching between them.
 
 ## Install
 
-Clone the repository and install the executable:
+Install the latest version directly:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Bedatty-Engineering/ghp/main/scripts/install.sh | bash
+```
+
+To choose another installation directory, set `GHP_INSTALL_DIR`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Bedatty-Engineering/ghp/main/scripts/install.sh | GHP_INSTALL_DIR="$HOME/bin" bash
+```
+
+You can also clone the repository and install from the checkout:
 
 ```sh
 git clone https://github.com/Bedatty-Engineering/ghp.git
 cd ghp
-./ghp install
+./scripts/install.sh
 ```
 
 The installer copies `ghp` to `~/.local/bin`. Add that directory to `PATH` if
 it is not already there. To install somewhere else, pass a destination:
 
 ```sh
-./ghp install "$HOME/bin"
+./scripts/install.sh "$HOME/bin"
 ```
 
-You can also run `./ghp` from the checkout without installing it.
+Remove the default installation from a checkout with:
+
+```sh
+./scripts/uninstall.sh
+```
+
+For a custom directory, pass the path or set `GHP_INSTALL_DIR`. The remote
+uninstaller is also available:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Bedatty-Engineering/ghp/main/scripts/uninstall.sh | bash
+```
+
+You can also run `./ghp` directly from a checkout without installing it.
 
 ## Usage
 
