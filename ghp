@@ -1,33 +1,36 @@
 #!/usr/bin/env bash
-# Switch between authenticated GitHub CLI accounts.
+# ghp — switch between authenticated GitHub CLI accounts.
 
 set -o pipefail
 
+# Configuration and common errors
 GHP_HOST="${GH_HOST:-github.com}"
 
-fail() {
+ghp_fail() {
   printf 'ghp: %s\n' "$*" >&2
   return 1
 }
 
-require_gh() {
-  command -v gh >/dev/null 2>&1 || fail "GitHub CLI (gh) was not found in PATH."
+ghp_require_gh() {
+  command -v gh >/dev/null 2>&1 || ghp_fail "GitHub CLI (gh) was not found in PATH."
 }
 
-accounts() {
+# GitHub CLI account queries
+ghp_accounts() {
   gh auth status --hostname "$GHP_HOST" 2>&1 |
     awk '/account/{for (i=1; i<=NF; i++) if ($i=="account") print $(i+1)}' |
     awk '!seen[$0]++'
 }
 
-active_account() {
+ghp_active_account() {
   gh auth status --hostname "$GHP_HOST" 2>&1 | awk '
     /account/{for (i=1; i<=NF; i++) if ($i=="account") account=$(i+1)}
     /Active account: true/{print account; exit}
   '
 }
 
-usage() {
+# Command reference
+ghp_usage() {
   cat <<'EOF'
 Usage:
   ghp                         Choose an account with fzf
@@ -44,9 +47,12 @@ Requires GitHub CLI (gh). The interactive picker also requires fzf.
 EOF
 }
 
-choose_account() {
-  command -v fzf >/dev/null 2>&1 || { fail "fzf was not found. Use: ghp use <account>"; return 1; }
-  accounts | fzf --prompt='  ' \
+ghp_choose_account() {
+  command -v fzf >/dev/null 2>&1 || {
+    ghp_fail 'fzf was not found. Use: ghp use <account>'
+    return 1
+  }
+  ghp_accounts | fzf --prompt='  ' \
     --header="Select GitHub account on $GHP_HOST" --header-first \
     --layout=reverse --height='~40%' --min-height=8 --border=rounded \
     --border-label=' ghp ' --pointer='>' \
@@ -55,48 +61,79 @@ choose_account() {
     --preview-label=' account details ' --preview-window=right,40%,border-left
 }
 
-select_action() {
+# Interactive account selection
+ghp_select_action() {
   local action user
-  command -v fzf >/dev/null 2>&1 || { fail 'fzf was not found. Install fzf or use: ghp use <account>'; return 1; }
+  command -v fzf >/dev/null 2>&1 || {
+    ghp_fail 'fzf was not found. Install fzf or use: ghp use <account>'
+    return 1
+  }
   action=$(printf '%s\n' 'Switch profile' 'Generate signing key' | fzf \
     --prompt='  ' --header='GitHub Account Manager' --header-first \
     --layout=reverse --height='~40%' --min-height=8 --border=rounded \
     --border-label=' ghp ' --pointer='>' \
     --color='header:cyan:bold,border:cyan,label:cyan:bold,pointer:cyan:bold,prompt:cyan') || return 0
   case "$action" in
-    'Switch profile') user=$(choose_account) || return $? ;;
+    'Switch profile') user=$(ghp_choose_account) || return $? ;;
     'Generate signing key')
-      user=$(accounts | fzf --prompt='  ' --header='Select account for signing key' --header-first \
-        --layout=reverse --height='~40%' --min-height=8 --border=rounded --border-label=' signing key ') || return 0
-      signing_key "$user"
+      user=$(ghp_accounts | fzf --prompt='  ' \
+        --header='Select account for signing key' --header-first \
+        --layout=reverse --height='~40%' --min-height=8 \
+        --border=rounded --border-label=' signing key ') || return 0
+      ghp_signing_key "$user"
       return $?
       ;;
     *) return 0 ;;
   esac
-  if ! accounts | grep -Fxq "$user"; then fail "Account not found: $user"; return 1; fi
+  if ! ghp_accounts | grep -Fxq "$user"; then
+    ghp_fail "Account not found: $user"
+    return 1
+  fi
   gh auth switch --hostname "$GHP_HOST" --user "$user" || return $?
   printf 'Current account (%s): %s\n' "$GHP_HOST" "$user"
   gh auth status --hostname "$GHP_HOST" 2>&1
 }
 
-signing_key() {
-  local user="${1:-$(active_account)}" token login account_id host_slug key_file key_name
-  if [[ -z "$user" ]]; then fail 'No account selected. Use: ghp signing-key <account>'; return 1; fi
-  if ! accounts | grep -Fxq "$user"; then fail "Account not found: $user"; return 1; fi
+# SSH signing key setup
+ghp_signing_key() {
+  local user="${1:-$(ghp_active_account)}" token login account_id host_slug key_file key_name
+  if [[ -z "$user" ]]; then
+    ghp_fail 'No account selected. Use: ghp signing-key <account>'
+    return 1
+  fi
+  if ! ghp_accounts | grep -Fxq "$user"; then
+    ghp_fail "Account not found: $user"
+    return 1
+  fi
 
   read -r -p 'Signing key name: ' key_name
-  if [[ -z "${key_name//[[:space:]]/}" ]]; then fail 'Signing key name cannot be empty.'; return 1; fi
-  token=$(gh auth token --hostname "$GHP_HOST" --user "$user") || { fail "Could not get an authentication token for $user."; return 1; }
+  if [[ -z "${key_name//[[:space:]]/}" ]]; then
+    ghp_fail 'Signing key name cannot be empty.'
+    return 1
+  fi
+  token=$(gh auth token --hostname "$GHP_HOST" --user "$user") || {
+    ghp_fail "Could not get an authentication token for $user."
+    return 1
+  }
   login=$(GH_HOST="$GHP_HOST" GH_TOKEN="$token" gh api user --jq '.login') || return 1
   account_id=$(GH_HOST="$GHP_HOST" GH_TOKEN="$token" gh api user --jq '.id') || return 1
-  if [[ "$login" != "$user" || -z "$account_id" ]]; then fail 'The selected account could not be verified.'; return 1; fi
+  if [[ "$login" != "$user" || -z "$account_id" ]]; then
+    ghp_fail 'The selected account could not be verified.'
+    return 1
+  fi
 
   host_slug=$(printf '%s' "$GHP_HOST" | sed 's/[^[:alnum:].-]/-/g')
   key_file="$HOME/.ssh/gh-signing-${host_slug}-${account_id}"
   if [[ -e "$key_file" || -e "$key_file.pub" ]]; then
-    if [[ ! -f "$key_file" || ! -f "$key_file.pub" ]]; then fail "Incomplete signing key files at $key_file; refusing to overwrite them."; return 1; fi
+    if [[ ! -f "$key_file" || ! -f "$key_file.pub" ]]; then
+      ghp_fail "Incomplete signing key files at $key_file; refusing to overwrite them."
+      return 1
+    fi
     printf 'Reusing existing signing key at %s.\n' "$key_file"
-    ssh-keygen -c -C "$key_name" -P '' -f "$key_file" || { fail 'Could not update the public key comment.'; return 1; }
+    ssh-keygen -c -C "$key_name" -P '' -f "$key_file" || {
+      ghp_fail 'Could not update the public key comment.'
+      return 1
+    }
   else
     mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh" || return 1
     ssh-keygen -t ed25519 -C "$key_name" -f "$key_file" -N '' || return 1
@@ -120,7 +157,8 @@ Choose "Signing Key" and paste the contents of the .pub file. Keep the private k
 EOF
 }
 
-install_command() {
+# Self-installation
+ghp_install() {
   local destination="${1:-$HOME/.local/bin}" source_dir source_file
   source_file="$0"
   if [[ ! -f "$source_file" ]]; then source_file=$(command -v ghp) || return 1; fi
@@ -132,34 +170,44 @@ install_command() {
   case ":$PATH:" in *":$destination:"*) ;; *) printf 'Add this directory to PATH: %s\n' "$destination" ;; esac
 }
 
+# Command dispatch
 main() {
   local command="${1:-select}" user="${2:-}"
   shift || true
   case "$command" in
-    install) install_command "${1:-}"; return $? ;;
-    help|-h|--help) usage; return 0 ;;
+    install) ghp_install "${1:-}"; return $? ;;
+    help|-h|--help) ghp_usage; return 0 ;;
   esac
-  require_gh || return 1
+  ghp_require_gh || return 1
   case "$command" in
-    list) accounts; return $? ;;
+    list) ghp_accounts; return $? ;;
     status)
-      user=$(active_account)
+      user=$(ghp_active_account)
       if [[ -n "$user" ]]; then printf 'Current account (%s): %s\n' "$GHP_HOST" "$user"
       else printf 'Current account (%s): none logged in.\n' "$GHP_HOST"; fi
       gh auth status --hostname "$GHP_HOST" 2>&1; return $? ;;
     login) gh auth login --hostname "$GHP_HOST"; return $? ;;
     logout)
-      user="${user:-$(active_account)}"
-      if [[ -z "$user" ]]; then fail "Usage: ghp logout <account> (or log in to an account on $GHP_HOST first)"; return 1; fi
+      user="${user:-$(ghp_active_account)}"
+      if [[ -z "$user" ]]; then
+        ghp_fail "Usage: ghp logout <account> (or log in to an account on $GHP_HOST first)"
+        return 1
+      fi
       gh auth logout --hostname "$GHP_HOST" --user "$user"; return $? ;;
-    signing-key) signing_key "$user"; return $? ;;
-    select) select_action; return $? ;;
+    signing-key) ghp_signing_key "$user"; return $? ;;
+    select) ghp_select_action; return $? ;;
     use)
-      if [[ -z "$user" ]]; then fail 'Usage: ghp use <account>'; return 1; fi ;;
-    *) fail "Unknown command: $command (try: ghp help)"; return 1 ;;
+      if [[ -z "$user" ]]; then
+        ghp_fail 'Usage: ghp use <account>'
+        return 1
+      fi ;;
+    *) ghp_fail "Unknown command: $command (try: ghp help)"; return 1 ;;
   esac
 
-  if ! accounts | grep -Fxq "$user"; then fail "Account not found: $user"; return 1; fi
+  if ! ghp_accounts | grep -Fxq "$user"; then
+    ghp_fail "Account not found: $user"
+    return 1
+  fi
   gh auth switch --hostname "$GHP_HOST" --user "$user" || return $?
   printf 'Current account (%s): %s\n' "$GHP_HOST" "$user"
   gh auth status --hostname "$GHP_HOST" 2>&1
