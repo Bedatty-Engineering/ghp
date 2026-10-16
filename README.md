@@ -14,6 +14,7 @@ account, or create an SSH signing key for an account.
 - [Features](#features)
 - [Requirements](#requirements)
 - [Install](#install)
+- [Update](#update)
 - [Usage](#usage)
 - [GitHub Enterprise](#github-enterprise)
 - [SSH signing keys](#ssh-signing-keys)
@@ -37,7 +38,7 @@ account, or create an SSH signing key for an account.
 | [GitHub CLI](https://cli.github.com/) | Account and authentication commands |
 | [fzf](https://github.com/junegunn/fzf) | Interactive account picker |
 | `ssh-keygen` | `ghp signing-key` |
-| `curl` | Remote install and uninstall scripts |
+| `curl` | Remote install, update, and uninstall scripts |
 
 Authenticate accounts with `gh auth login` before switching between them.
 
@@ -69,6 +70,24 @@ it is not already there. To install somewhere else, pass a destination:
 ```sh
 ./scripts/install.sh "$HOME/bin"
 ```
+
+## Update
+
+Update the installed command from a checkout:
+
+```sh
+./scripts/update.sh
+```
+
+Or run the updater directly from GitHub:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Bedatty-Engineering/ghp/main/scripts/update.sh | bash
+```
+
+For a custom installation directory, pass it as an argument or set
+`GHP_INSTALL_DIR`. The updater checks for an existing installation and only
+replaces it after validating the downloaded script.
 
 Remove the default installation from a checkout with:
 
